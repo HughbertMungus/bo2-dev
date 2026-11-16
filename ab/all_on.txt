@@ -1,0 +1,5 @@
+# P2 batch on, at bo2-bisect production values
+gpu.d3d12.async_replay true
+gpu.d3d12.upload_copy_workers 3
+gpu.d3d12.upload_prefetch_frames 7
+gpu.xenos.cpu_write_invalidation_pages_log2 4

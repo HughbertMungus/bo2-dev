@@ -1,0 +1,3 @@
+# XMA decode pool (3 threads, bo2-bisect production) and FFmpeg alloc cache on
+runtime.xma_decode_threads 3
+runtime.ffmpeg_alloc_cache true

@@ -1,0 +1,5 @@
+# P2 batch 2 off (batch 1 stays on from the launcher)
+gpu.d3d12.defer_guest_stores false
+gpu.xenos.shared_memory_fast_path false
+gpu.d3d12.fetch_dedup false
+gpu.xenos.bulk_register_writes false

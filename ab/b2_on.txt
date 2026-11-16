@@ -1,0 +1,5 @@
+# P2 batch 2 on
+gpu.d3d12.defer_guest_stores true
+gpu.xenos.shared_memory_fast_path true
+gpu.d3d12.fetch_dedup true
+gpu.xenos.bulk_register_writes true

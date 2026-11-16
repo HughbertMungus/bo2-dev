@@ -1,0 +1,5 @@
+# P2 baseline: upstream behaviour (page clear stays off from the launcher)
+gpu.d3d12.async_replay false
+gpu.d3d12.upload_copy_workers 0
+gpu.d3d12.upload_prefetch_frames 0
+gpu.xenos.cpu_write_invalidation_pages_log2 6

@@ -1,0 +1,2 @@
+# texture recycling on, bo2-bisect production size
+gpu.d3d12.texture_recycle_pool_mb 384

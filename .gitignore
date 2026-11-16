@@ -1,0 +1,16 @@
+rexglue-sdk/
+run/*
+!run/*.cmd
+build*/
+logs/
+*.log
+tools/vulkan-sdk/
+app/out/
+app/generated/
+dumps/
+run/live.txt
+run-prof/
+dist/
+run/machine.cmd
+local.cmd
+game
