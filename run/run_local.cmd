@@ -90,6 +90,11 @@ rem BO2MP_MENU_QUIT=1 (2026-11-15): the multiplayer main menu reads System Link,
 rem Quit (no Xbox LIVE; Quit is the PC menu's own button and popup; app lua_patches.cpp).
 rem User-checked. BO2MP_MENU_QUIT=0 leaves the menu as shipped.
 if not defined BO2MP_MENU_QUIT set "BO2MP_MENU_QUIT=1"
+rem BO2MP_ATTACHMENTS=1 (2026-11-15): 3 primary and 2 secondary attachments without the Gunfighter
+rem wildcards (the most a class stores). CACUtility.IsBonusCardEquippedByName is rewritten as the
+rem menus load to report both Gunfighter cards as equipped (app lua_patches.cpp). User-checked in
+rem Create-a-Class and a match. BO2MP_ATTACHMENTS=0 leaves classes as shipped.
+if not defined BO2MP_ATTACHMENTS set "BO2MP_ATTACHMENTS=1"
 rem vsync off is bo2-bisect's play default (its app set it on every launch; BO2MP_VSYNC=1 = on).
 if not defined BO2MP_VSYNC set "BO2MP_VSYNC=0"
 rem Native 1280x720 single-player scene without MSAA (app scene_res.cpp; BO2 renders 880x720 2x and

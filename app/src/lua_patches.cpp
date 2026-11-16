@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include <rex/kernel/heap.h>
+#include <rex/kernel/thread_state.h>
 #include <rex/memory/mapped_ptr.h>
 #include <rex/ppc/hook.h>
 
@@ -145,22 +147,162 @@ void ApplyPatches(uint8_t* data, uint32_t size) {
   }
 }
 
+// Whole-function rewrites: a function's code and constants are replaced by longer ones, so the
+// rest of the chunk is copied into a new guest buffer the reader then reads from. HKS instruction
+// words: opcode = bits 25-31, A = 0-7, C = 8-16 (bit 8: constant), B = 17-24, Bx = 8-24, jumps
+// land on pc + 1 + Bx - 65535. A function is a u32 instruction count, padding to 4-byte alignment,
+// the instructions, a u32 constant count and the constants (0 nil, 3 float, 4 string), then its
+// nested functions and debug info. Rewrites grow by multiples of 4 so later padding stays valid.
+struct LuaRewrite {
+  const char* what;
+  uint32_t old_count;      // instruction count in the header before the code
+  ByteSignature body;      // the code, constant count and constants
+  uint32_t code_size;      // bytes of code at the start of body (old_count * 4)
+  std::string prefix;      // bo2-dev's instructions inserted before the original code
+  uint32_t new_count;      // instruction count with the prefix
+  uint32_t new_constants;  // constant count with the appended constants
+  std::string appended;    // bo2-dev's constants appended after the original ones
+  std::atomic<uint32_t> applied{0};
+};
+
+std::string Words(std::initializer_list<uint32_t> words) {
+  std::string out;
+  for (uint32_t w : words) {
+    out += BE32(w);
+  }
+  return out;
+}
+
+std::string StringConstant(const char* text) {
+  const uint32_t length = static_cast<uint32_t>(std::strlen(text)) + 1;
+  std::string out(1, '\x04');
+  out += BE32(length);
+  out.append(text, length);  // includes the NUL
+  return out;
+}
+
+std::vector<LuaRewrite*> BuildRewrites() {
+  std::vector<LuaRewrite*> rewrites;
+  const char* attachments = Env("BO2MP_ATTACHMENTS");
+  if (attachments && attachments[0] == '1') {
+    // BO2MP_ATTACHMENTS=1: 3 primary and 2 secondary attachments without the Gunfighter
+    // wildcards (the class data holds exactly those slots). Every copy of the attachment count
+    // rule asks CACUtility.IsBonusCardEquippedByName(class, name) for "bonuscard_<slot>_gunfighter",
+    // so that function (33 instructions, 8 constants) answers true for the two Gunfighter cards
+    // and is otherwise unchanged:
+    //   if name == "bonuscard_primary_gunfighter" then return true end
+    //   if name == "bonuscard_secondary_gunfighter" then return true end
+    //   <the original code, copied from the chunk>
+    // The new constants follow the original 8, so they are K8 and K9.
+    // EQ A=0 B=r1 C=K8 / K9 (skip the jump when equal), JMP +2 (past the return),
+    // LOADBOOL r2 = true, RETURN r2 (one result).
+    const std::string guard = Words({0x08030800, 0x39000100, 0x1a020002, 0x12040002,
+                                     0x08030900, 0x39000100, 0x1a020002, 0x12040002});
+    rewrites.push_back(new LuaRewrite{
+        "class attachments: Gunfighter counts without the wildcard", 33,
+        {237, 0x886e, 0x21978d1528bbb81bull}, 33 * 4, guard, 33 + 8, 8 + 4,
+        StringConstant("bonuscard_primary_gunfighter") +
+            StringConstant("bonuscard_secondary_gunfighter") +
+            std::string(2, '\0')});  // 2 nil constants: 104 bytes more, a multiple of 4
+  }
+  return rewrites;
+}
+
+const std::vector<LuaRewrite*>& Rewrites() {
+  static const std::vector<LuaRewrite*> rewrites = BuildRewrites();
+  return rewrites;
+}
+
+// Rewrites a matching function in data[0, size) into a new guest buffer; returns its address
+// (and size) or 0 when nothing matched.
+uint32_t ApplyRewrites(uint8_t* base, const uint8_t* data, uint32_t size, uint32_t* new_size) {
+  for (LuaRewrite* rewrite : Rewrites()) {
+    const uint32_t body = rewrite->body.length;
+    for (size_t i = bo2::Find(rewrite->body, data, size, 8); i != SIZE_MAX;
+         i = bo2::Find(rewrite->body, data, size, i + 1)) {
+      // The instruction count sits before the code, with up to 3 bytes of padding between.
+      uint32_t count_at = 0;
+      for (uint32_t pad = 0; pad < 4; ++pad) {
+        if (LoadBE32(data + i - 4 - pad) == rewrite->old_count) {
+          count_at = static_cast<uint32_t>(i) - 4 - pad;
+          break;
+        }
+      }
+      if (!count_at) {
+        continue;
+      }
+      const uint32_t grow =
+          static_cast<uint32_t>(rewrite->prefix.size() + rewrite->appended.size());
+      const uint32_t total = size + grow;
+      rex::kernel::ThreadState* state = rex::kernel::ThreadState::Get();
+      if (!state || !state->GetAddressSpace()) {
+        return 0;
+      }
+      const uint32_t guest = state->GetAddressSpace()->SystemHeapAlloc(total, 0x20);
+      if (!guest) {
+        return 0;
+      }
+      // Up to the count, the new count, the padding, the prefix, the original code, the new
+      // constant count, the original constants, the appended constants, the rest of the chunk.
+      uint8_t* out = rex::memory::GuestPtr<uint8_t*>(base, guest);
+      uint8_t* o = out;
+      auto put = [&o](const void* from, size_t n) {
+        std::memcpy(o, from, n);
+        o += n;
+      };
+      const std::string count = BE32(rewrite->new_count);
+      const std::string constants = BE32(rewrite->new_constants);
+      const uint32_t code_end = static_cast<uint32_t>(i) + rewrite->code_size;
+      put(data, count_at);
+      put(count.data(), 4);
+      put(data + count_at + 4, i - (count_at + 4));
+      put(rewrite->prefix.data(), rewrite->prefix.size());
+      put(data + i, rewrite->code_size);
+      put(constants.data(), 4);
+      put(data + code_end + 4, i + body - (code_end + 4));
+      put(rewrite->appended.data(), rewrite->appended.size());
+      put(data + i + body, size - (i + body));
+      if (rewrite->applied.fetch_add(1) == 0) {
+        if (std::FILE* log = std::fopen("mp_luapatch.txt", "a")) {
+          std::fprintf(log, "rewrote %s\n", rewrite->what);
+          std::fclose(log);
+        }
+      }
+      *new_size = total;
+      return guest;
+    }
+  }
+  return 0;
+}
+
 }  // namespace
 
 // luaZ_read(reader, destination, size): copies size bytes of the chunk, refilling from the reader.
 REX_DETOUR(sub_82631320, u32, (PPCContext & ctx, u32 reader, u32 destination, u32 size)) {
-  if (!Patches().empty()) {
+  if (!Patches().empty() || !Rewrites().empty()) {
     u8* base = ctx.detour_frame->base;
     // Scan each buffered stretch of the chunk once, before any of it is copied out.
     thread_local uint32_t scanned_begin = 0;
     thread_local uint32_t scanned_end = 0;
-    const uint8_t* reader_host = rex::memory::GuestPtr<const uint8_t*>(base, reader);
+    uint8_t* reader_host = rex::memory::GuestPtr<uint8_t*>(base, reader);
     const uint32_t remaining = LoadBE32(reader_host + 16);
     const uint32_t pointer = LoadBE32(reader_host + 20);
     if (remaining && pointer && !(pointer >= scanned_begin && pointer < scanned_end)) {
       scanned_begin = pointer;
       scanned_end = pointer + remaining;
-      ApplyPatches(rex::memory::GuestPtr<uint8_t*>(base, pointer), remaining);
+      uint8_t* data = rex::memory::GuestPtr<uint8_t*>(base, pointer);
+      ApplyPatches(data, remaining);
+      uint32_t new_size = 0;
+      const uint32_t rewritten = ApplyRewrites(base, data, remaining, &new_size);
+      if (rewritten) {
+        // Read the rest of the chunk from the rewritten copy (remaining count +16, pointer +20).
+        for (int k = 0; k < 4; ++k) {
+          reader_host[16 + k] = static_cast<uint8_t>(new_size >> (24 - 8 * k));
+          reader_host[20 + k] = static_cast<uint8_t>(rewritten >> (24 - 8 * k));
+        }
+        scanned_begin = rewritten;
+        scanned_end = rewritten + new_size;
+      }
     }
   }
   return original(ctx, reader, destination, size);
