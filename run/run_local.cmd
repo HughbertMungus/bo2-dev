@@ -76,6 +76,8 @@ rem waits/s; repeated timed-out polls sleep 50 us too (Backend 84%% -> 5%% of a 
 rem 5 x 15 s: 2.83 -> 2.46 cores. kernel.yield_idle_gap_us=1000: idle job workers scan their queues
 rem ~90 us between yields, so polls up to 1 ms apart count as back to back: 2.41 -> 2.04 cores.
 rem fps unchanged in both (median ~124, p5 ~123.5). All told 3.54 -> ~2.0 cores at a 120 cap.
+rem Rechecked 2026-11-26 after the upstream merge (SDK 0.12.0, cheaper locks): 1p 120 cap, 5 x 15 s
+rem (tools\ab_cpu.py ab\idle_off.txt ab\idle_on.txt): off 3.22 -> on 1.82 cores, fps 123.0 -> 124.4.
 rem texture_cpu_written_reload_per_frame (2026-11-14): a texture the CPU keeps writing (BO2's 2 MB 3D
 rem 512x256x4, ~52% of texture load bytes) is reloaded once per frame instead of on every draw.
 rem Peer 4p in-match A/B 6 x 25 s: 73.5 vs 65.8 fps (+12%%), p10 64.9 vs 55.2, GPU 13.1 vs 15.1 ms,

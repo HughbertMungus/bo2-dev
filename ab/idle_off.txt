@@ -1,0 +1,3 @@
+# idle backoff off (upstream behaviour only)
+kernel.yield_idle_sleep_us 0
+kernel.wait_poll_sleep_us 0
