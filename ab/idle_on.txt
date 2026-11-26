@@ -1,0 +1,4 @@
+# idle backoff on (run_local.cmd defaults)
+kernel.yield_idle_sleep_us 50
+kernel.wait_poll_sleep_us 50
+kernel.yield_idle_gap_us 1000
