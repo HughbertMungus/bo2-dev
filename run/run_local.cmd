@@ -34,6 +34,9 @@ cd /d "%BO2MP_BIN%"
 rem Data root: a release layout (..\BO2) if present, otherwise the source tree's game folder.
 if not defined BO2MP_DATA if exist "%~dp0..\BO2\default_mp.xex" set "BO2MP_DATA=%~dp0..\BO2"
 if not defined BO2MP_DATA set "BO2MP_DATA=%~dp0..\game"
+rem BO2MP_UPDATE: the title update's data (patch_mp.ff etc., the update: mount), default the data
+rem root; for title update 18 the extracted update package (e.g. set in machine.cmd).
+if not defined BO2MP_UPDATE set "BO2MP_UPDATE=%BO2MP_DATA%"
 if not defined BO2MP_LOGLEVEL set "BO2MP_LOGLEVEL=info"
 if not defined BO2MP_RTPATH set "BO2MP_RTPATH=rtv"
 if not defined BO2MP_MEMEXP_READBACK set "BO2MP_MEMEXP_READBACK=false"
@@ -120,7 +123,7 @@ if not "%~1"=="" set "REFRESH=%~1"
 if defined BO2MP_REFRESH set "REFRESH=%BO2MP_REFRESH%"
 if not exist cache_mp mkdir cache_mp
 "%BO2MP_BIN%defaultmp.exe" ^
-  --title.game_root="%BO2MP_DATA%" --title.update_root="%BO2MP_DATA%" ^
+  --title.game_root="%BO2MP_DATA%" --title.update_root="%BO2MP_UPDATE%" ^
   --kernel.signed_in_users=%BO2MP_USERS% ^
   --gpu.vsync=%VSYNC% ^
   --hid.drivers=%HID_DRIVERS% ^
