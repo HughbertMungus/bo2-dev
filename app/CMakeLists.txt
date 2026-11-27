@@ -17,7 +17,7 @@ else ()
 endif ()
 rexglue_project(defaultmp OUTPUT_DIR generated/default_mp)
 
-set(DEFAULTMP_HOST_SOURCES src/stubs.cpp src/compat_math.cpp src/dvar_force.cpp src/vpad.cpp src/scene_res.cpp src/live_settings.cpp src/lua_patches.cpp src/gsc_patches.cpp)
+set(DEFAULTMP_HOST_SOURCES src/stubs.cpp src/compat_math.cpp src/dvar_force.cpp src/vpad.cpp src/scene_res.cpp src/live_settings.cpp src/lua_patches.cpp src/gsc_patches.cpp src/ui_error_log.cpp)
 
 # OBJECT and never STATIC, an archive drops the REX_EXPORT symbols.
 add_library(defaultmp_common OBJECT ${DEFAULTMP_HOST_SOURCES})

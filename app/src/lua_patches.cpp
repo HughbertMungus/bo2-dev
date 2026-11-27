@@ -1,7 +1,7 @@
 // Patches to the title's Lua (LUI menu) chunks as they load (bo2-dev).
 //
 // The menus are HavokScript bytecode inside encrypted fastfiles, so instead of editing the archives
-// this detours the chunk block reader (luaZ_read, sub_82631320: r3 = the reader, whose remaining
+// this detours the chunk block reader (luaZ_read, sub_826E2028: r3 = the reader, whose remaining
 // byte count is at +16 and read pointer at +20) and rewrites known constants or instructions in
 // the unread bytes before the loader parses them. Each patch finds its bytes by hashes (byte_signature.h), so
 // a different build of the scripts is simply left alone. Function layout: a u32 instruction count,
@@ -98,8 +98,18 @@ std::vector<LuaPatch*> BuildPatches() {
       // The scoreboard shows 9 rows per team in Local Multiplayer (13 elsewhere). Use 13 there
       // too, the most a team supports: a 14th player on a team ended the title, and 18 rows ended
       // it at startup, so the lobby clamp above stops team games at 13 per team.
-      add("split screen scoreboard rows 9 -> 13", {42, 0xc400, 0x7fc540bcc6176fc8ull},
-          {{33, FloatBE(13.0f)}});
+      // BO2MP_SCOREBOARD_ROWS=0 leaves the 9 rows (to isolate scoreboard problems).
+      const char* rows = Env("BO2MP_SCOREBOARD_ROWS");
+      if (!rows || rows[0] != '0') {
+        add("split screen scoreboard rows 9 -> 13", {42, 0xc400, 0x7fc540bcc6176fc8ull},
+            {{33, FloatBE(13.0f)}});
+      }
+      // Title update 18 creates fewer scoreboard row elements in Local Multiplayer (the builder's
+      // "if local split screen then count = <per-team value>"), so a team past it reaches a nil
+      // row (UI Error, "attempt to index a nil value" in the update, and a relaunch). Keep the
+      // System Link count there: at 553 MOVE r12 = r19 becomes MOVE r12 = r12.
+      add("scoreboard rows created in Local Multiplayer (TU18)",
+          {48, 0x1800, 0x81a519adeb54d64bull}, {{32, BE32(0x4c18000c)}});
     }
   }
   const char* menu_quit = Env("BO2MP_MENU_QUIT");
@@ -112,16 +122,25 @@ std::vector<LuaPatch*> BuildPatches() {
     //    the field read at 560 owns data words) jump +15 to 580, the next statement.
     add("main menu: no Xbox LIVE entry", {48, 0xf2e1, 0x6d1d17c0bb62f284ull},
         {{3 * 4, BE32(0x39000f00)}});
+    // Title update 18 has the same code at 628-639 (constant numbers shifted), the jump at 631.
+    add("main menu: no Xbox LIVE entry (TU18)", {48, 0x551c, 0x6d959cbbd970b417ull},
+        {{3 * 4, BE32(0x39000f00)}});
     // 2. After Options, "if CoD.isPC" guards a spacer, Single Player, Multiplayer / Zombies, a
     //    spacer, Quit, a quit button prompt and a re-layout; off PC the jump at 767 (+138) goes past
     //    all of it to 907. Jump to the Quit button at 863 instead (+94).
     add("main menu: Quit after Options", {28, 0x7a2a, 0x1afd9950fe8b9e9full},
+        {{5 * 4, BE32(0x39005e00)}});
+    // Title update 18: the jump at 860 (+138 to 1000), the Quit button at 956, so +94 again.
+    add("main menu: Quit after Options (TU18)", {28, 0x7a2a, 0xa82abad1dd0a16a6ull},
         {{5 * 4, BE32(0x39005e00)}});
     // 3. After Quit's setActionEventName (882), skip the PC quit button prompt and re-layout
     //    (883-906): at 883 (the addLeftButtonPrompt lookup) jump +22 to 907, where the original
     //    jump went. Quit opens the game's own quit popup (open_quit_popup -> OpenQuitPopup, whose
     //    handler is registered on every platform).
     add("main menu: skip PC quit prompt and layout", {16, 0x0de9, 0xe61e1bbf55146de8ull},
+        {{2 * 4, BE32(0x39001600)}});
+    // Title update 18: the prompt lookup at 976, jump +22 to 1000.
+    add("main menu: skip PC quit prompt and layout (TU18)", {16, 0x0de9, 0x2c34712aa779a32dull},
         {{2 * 4, BE32(0x39001600)}});
   }
   return patches;
@@ -205,6 +224,26 @@ std::vector<LuaRewrite*> BuildRewrites() {
             StringConstant("bonuscard_secondary_gunfighter") +
             std::string(2, '\0')});  // 2 nil constants: 104 bytes more, a multiple of 4
   }
+  const char* quit = Env("BO2MP_MENU_QUIT");
+  if (quit && quit[0] == '1') {
+    // Title update 18 no longer loads the PC QuitPopup menu, so the main menu's Quit button
+    // (OpenQuitPopup: self:openPopup("QuitPopup", event.controller)) ends in UI Error 17898.
+    // Quit without the popup instead: Engine.Exec(event.controller, "quit"), the command the
+    // popup's confirm button runs. The words follow the title's own code (the controller field
+    // read of this function; GETGLOBAL Engine, GETFIELD Exec, CALL with 2 arguments as in the
+    // vehicle bindings options code), then RETURN; the original code stays, unreachable. The new
+    // constants follow the original 3: Engine K3, Exec K4, "quit" K5.
+    const std::string body = Words({0x00020202, 0x98000000, 0x98000000,  // r2 = r1.controller
+                                    0x0c000301,                          // r1 = Engine
+                                    0x92020401, 0x98000000, 0x98000000,  // r1 = r1.Exec
+                                    0x32000503,                          // r3 = "quit"
+                                    0x04060101,                          // r1(r2, r3)
+                                    0x12020000});                        // return
+    rewrites.push_back(new LuaRewrite{
+        "main menu: Quit quits without the missing QuitPopup", 7,
+        {78, 0xc61f, 0xfc249067d59bc9daull}, 7 * 4, body, 7 + 10, 3 + 3,
+        StringConstant("Engine") + StringConstant("Exec") + StringConstant("quit")});
+  }
   return rewrites;
 }
 
@@ -278,7 +317,7 @@ uint32_t ApplyRewrites(uint8_t* base, const uint8_t* data, uint32_t size, uint32
 }  // namespace
 
 // luaZ_read(reader, destination, size): copies size bytes of the chunk, refilling from the reader.
-REX_DETOUR(sub_82631320, u32, (PPCContext & ctx, u32 reader, u32 destination, u32 size)) {
+REX_DETOUR(sub_826E2028, u32, (PPCContext & ctx, u32 reader, u32 destination, u32 size)) {
   if (!Patches().empty() || !Rewrites().empty()) {
     u8* base = ctx.detour_frame->base;
     // Scan each buffered stretch of the chunk once, before any of it is copied out.

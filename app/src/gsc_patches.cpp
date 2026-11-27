@@ -147,6 +147,10 @@ void StartGscPatches(uint8_t* guest_base) {
     patches.push_back(GscPatch{"local multiplayer max players 10 -> 18",
                                {15, 0xf4af, 0x76630c99b0ec8367ull},
                                {{5, std::string(1, static_cast<char>(18))}}});
+    // Title update 18: the same jump, GetByte 10, jump, GetByte 18, store, with another jump opcode.
+    patches.push_back(GscPatch{"local multiplayer max players 10 -> 18 (TU18)",
+                               {15, 0x879c, 0x2e3aaed9cd4373c8ull},
+                               {{5, std::string(1, static_cast<char>(18))}}});
   }
   if (patches.empty() || guest_base == nullptr) {
     return;

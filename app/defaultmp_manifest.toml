@@ -13,14 +13,15 @@ hook_sources = ["src"]
 file_path = "../game/default_mp.xex"
 out_directory_path = "generated/default_mp"
 includes = []
-setjmp_address = 0x827D8600
-longjmp_address = 0x827D9790
+setjmp_address = 0x82918CA0
+longjmp_address = 0x82919E50
 
 [entrypoint.functions]
-0x82425F18 = { end = 0x82425F20 }
-0x826c4428 = {}
-0x826bf2f0 = {}
-0x826c5818 = {}
-0x826cacb8 = {}
-0x8221af28 = {}
-0x821c47c8 = {}
+# Title update 18 addresses, mapped from the disc version by byte matches (0x821C47C8 changed
+# in TU18 and has no match; left out until codegen asks for it).
+0x8249AD08 = { end = 0x8249AD10 }
+0x82803088 = {}
+0x827FDFF0 = {}
+0x828044F0 = {}
+0x82809990 = {}
+0x82274C98 = {}

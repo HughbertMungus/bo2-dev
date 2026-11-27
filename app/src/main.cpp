@@ -8,6 +8,8 @@
 #include <rex/result.h>
 #include <rex/settings_registry.h>
 #include <rex/kernel/title_runtime.h>
+#include <rex/ui/ui_system.h>
+#include <rex/xam/title_lifecycle.h>
 
 #include "dvar_force.h"
 #include "gsc_patches.h"
@@ -68,7 +70,15 @@ class DefaultmpApp : public rex::app::TitleApp {
   // The default asks "Restart / Exit" when the title exits (on the 360, BO2 MP leaving to the
   // campaign or Zombies launches another executable). Nothing else runs here, so close the app:
   // streaming hosts (Sunshine/Moonlight) and launch scripts expect the process to end.
-  void OnTitleExit(rex::kernel::TitleExitReason) override { rex::app::RequestShutdown(0); }
+  // A title that relaunches its own executable (title update 18 does on its first start, to
+  // pick up its launch data) is restarted; the runtime hands the launch data over.
+  void OnTitleExit(rex::kernel::TitleExitReason) override {
+    if (rex::xam::HasPendingSelfLaunch()) {
+      GetUI().PostTask([this] { RestartTitle(); });
+      return;
+    }
+    rex::app::RequestShutdown(0);
+  }
 
  private:
   bool mirror_started_ = false;

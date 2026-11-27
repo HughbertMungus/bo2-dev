@@ -1,9 +1,10 @@
-// Native 1280x720 single-player scene for BO2 MP (bo2-dev).
+// Native 1280x720 single-player scene for BO2 MP (bo2-dev). Addresses are title update 18's
+// (the disc version's + 0x14AF48: the table moved as a whole, its records are unchanged).
 //
 // BO2 renders the single-player scene at 880x720 with 2x MSAA and resamples it to the 1280x720
 // front buffer (the Xbox 360's 10 MB EDRAM fits 880x720 2x colour + depth; 1280x720 2x does not).
 // The sizes come from a static render-target table in the image (52-byte records at
-// 0x8294F2E4..0x829516D8: +0 width, +2 height (u16), +8 colour format, +12 depth format,
+// 0x82A9A22C..0x82A9C620: +0 width, +2 height (u16), +8 colour format, +12 depth format,
 // +16 MSAA (0 none, 1 2x, 2 4x), +22 id, +26/+28 resolve texture width/height).
 //
 // BO2MP_SCENE_1280=1 rewrites the single-player 880-based family before the guest starts:
@@ -33,26 +34,26 @@ struct Patch {
 
 constexpr Patch kPatches[] = {
     // Scene targets (R_RENDERTARGET_SINGLE_PLAYER_FULLSCENE_*): 880x720 2x -> 1280x720 1x.
-    {0x8294F964, 0x112F, 880, 720, 1, 1280, 720, 0},
-    {0x8294F9CC, 0x1131, 880, 720, 1, 1280, 720, 0},
-    {0x8294FA00, 0x1132, 880, 720, 1, 1280, 720, 0},
-    {0x8294FA34, 0x1133, 880, 720, 1, 1280, 720, 0},
+    {0x82A9A8AC, 0x112F, 880, 720, 1, 1280, 720, 0},
+    {0x82A9A914, 0x1131, 880, 720, 1, 1280, 720, 0},
+    {0x82A9A948, 0x1132, 880, 720, 1, 1280, 720, 0},
+    {0x82A9A97C, 0x1133, 880, 720, 1, 1280, 720, 0},
     // Its 4x alias (same EDRAM samples): 440x720 4x -> 320x720 4x.
-    {0x8294F998, 0x0130, 440, 720, 2, 320, 720, 2},
+    {0x82A9A8E0, 0x0130, 440, 720, 2, 320, 720, 2},
     // Post-effect targets at scene size.
-    {0x8294FB04, 0x0137, 880, 720, 0, 1280, 720, 0},
-    {0x82950150, 0x017F, 880, 720, 0, 1280, 720, 0},
-    {0x82950184, 0x0199, 880, 720, 0, 1280, 720, 0},
+    {0x82A9AA4C, 0x0137, 880, 720, 0, 1280, 720, 0},
+    {0x82A9B098, 0x017F, 880, 720, 0, 1280, 720, 0},
+    {0x82A9B0CC, 0x0199, 880, 720, 0, 1280, 720, 0},
     // 4x alias of 0x0137: 440x360 4x -> 640x360 4x.
-    {0x8294FB38, 0x0138, 440, 360, 2, 640, 360, 2},
+    {0x82A9AA80, 0x0138, 440, 360, 2, 640, 360, 2},
     // Quarter size.
-    {0x8294FB6C, 0x0139, 220, 180, 0, 320, 180, 0},
-    {0x8294FBA0, 0x013A, 220, 180, 0, 320, 180, 0},
-    {0x8294FBD4, 0x013B, 220, 180, 0, 320, 180, 0},
-    {0x829501B8, 0x01AD, 110, 90, 0, 160, 90, 0},
+    {0x82A9AAB4, 0x0139, 220, 180, 0, 320, 180, 0},
+    {0x82A9AAE8, 0x013A, 220, 180, 0, 320, 180, 0},
+    {0x82A9AB1C, 0x013B, 220, 180, 0, 320, 180, 0},
+    {0x82A9B100, 0x01AD, 110, 90, 0, 160, 90, 0},
     // Half size.
-    {0x8294F8FC, 0x1113, 440, 360, 0, 640, 360, 0},
-    {0x8294F930, 0x1114, 440, 360, 0, 640, 360, 0},
+    {0x82A9A844, 0x1113, 440, 360, 0, 640, 360, 0},
+    {0x82A9A878, 0x1114, 440, 360, 0, 640, 360, 0},
 };
 
 uint16_t Load16(const uint8_t* p) { return static_cast<uint16_t>((p[0] << 8) | p[1]); }
@@ -87,8 +88,8 @@ constexpr SizeMap kSplitSizes[] = {
     {104, 44, 160, 45, false},   {52, 22, 80, 22, false},     {448, 352, 640, 360, true},
     {224, 176, 320, 180, false}, {112, 88, 160, 90, false},   {56, 44, 80, 45, false},
 };
-constexpr uint32_t kTableBegin = 0x8294E000;
-constexpr uint32_t kTableEnd = 0x82952000;
+constexpr uint32_t kTableBegin = 0x82A98F48;
+constexpr uint32_t kTableEnd = 0x82A9CF48;
 constexpr int kExpectedRecords = 167;
 constexpr int kExpectedSplitRecords = 106;
 
